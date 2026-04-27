@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "author": "Matin Rusydan",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": -300, "left": 50, "attrs": {} },
+    { "type": "wokwi-max7219-matrix", "id": "matrix1", "top": -500, "left": -300, "attrs": { "chain": "5" } },
+    { "type": "wokwi-max7219-matrix", "id": "matrix2", "top": -500, "left": 150, "attrs": { "chain": "5" } },
+    
+    { "type": "wokwi-hc-sr04", "id": "us1", "top": 50, "left": -300, "attrs": { "distance": "400" } },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir1", "top": 150, "left": -300, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "us2", "top": 50, "left": -100, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir2", "top": 150, "left": -100, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "us3", "top": 50, "left": 100, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir3", "top": 150, "left": 100, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "us4", "top": 50, "left": 300, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir4", "top": 150, "left": 300, "attrs": {} },
+
+    { "type": "wokwi-hc-sr04", "id": "us5", "top": 350, "left": -300, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir5", "top": 450, "left": -300, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "us6", "top": 350, "left": -100, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir6", "top": 450, "left": -100, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "us7", "top": 350, "left": 100, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir7", "top": 450, "left": 100, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "us8", "top": 350, "left": 300, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir8", "top": 450, "left": 300, "attrs": {} }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    
+    [ "matrix1:VCC", "esp:5V", "red", [] ], [ "matrix1:GND", "esp:GND.1", "black", [] ],
+    [ "matrix1:DIN", "esp:23", "blue", [] ], [ "matrix1:CLK", "esp:18", "yellow", [] ], [ "matrix1:CS", "esp:5", "green", [] ],
+    
+    [ "matrix2:VCC", "esp:5V", "red", [] ], [ "matrix2:GND", "esp:GND.1", "black", [] ],
+    [ "matrix2:DIN", "esp:23", "blue", [] ], [ "matrix2:CLK", "esp:18", "yellow", [] ], [ "matrix2:CS", "esp:19", "green", [] ],
+
+    [ "us1:VCC", "esp:5V", "red", [] ], [ "us1:GND", "esp:GND.2", "black", [] ], [ "us1:TRIG", "esp:13", "cyan", [] ], [ "us1:ECHO", "esp:12", "orange", [] ],
+    [ "pir1:VCC", "esp:5V", "red", [] ], [ "pir1:GND", "esp:GND.2", "black", [] ], [ "pir1:OUT", "esp:34", "purple", [] ],
+    [ "us2:VCC", "esp:5V", "red", [] ], [ "us2:GND", "esp:GND.2", "black", [] ], [ "us2:TRIG", "esp:13", "cyan", [] ], [ "us2:ECHO", "esp:14", "orange", [] ],
+    [ "pir2:VCC", "esp:5V", "red", [] ], [ "pir2:GND", "esp:GND.2", "black", [] ], [ "pir2:OUT", "esp:35", "purple", [] ],
+    [ "us3:VCC", "esp:5V", "red", [] ], [ "us3:GND", "esp:GND.2", "black", [] ], [ "us3:TRIG", "esp:13", "cyan", [] ], [ "us3:ECHO", "esp:27", "orange", [] ],
+    [ "pir3:VCC", "esp:5V", "red", [] ], [ "pir3:GND", "esp:GND.2", "black", [] ], [ "pir3:OUT", "esp:32", "purple", [] ],
+    [ "us4:VCC", "esp:5V", "red", [] ], [ "us4:GND", "esp:GND.2", "black", [] ], [ "us4:TRIG", "esp:13", "cyan", [] ], [ "us4:ECHO", "esp:26", "orange", [] ],
+    [ "pir4:VCC", "esp:5V", "red", [] ], [ "pir4:GND", "esp:GND.2", "black", [] ], [ "pir4:OUT", "esp:33", "purple", [] ],
+
+    [ "us5:VCC", "esp:5V", "red", [] ], [ "us5:GND", "esp:GND.2", "black", [] ], [ "us5:TRIG", "esp:4", "cyan", [] ], [ "us5:ECHO", "esp:16", "orange", [] ],
+    [ "pir5:VCC", "esp:5V", "red", [] ], [ "pir5:GND", "esp:GND.2", "black", [] ], [ "pir5:OUT", "esp:25", "purple", [] ],
+    [ "us6:VCC", "esp:5V", "red", [] ], [ "us6:GND", "esp:GND.2", "black", [] ], [ "us6:TRIG", "esp:4", "cyan", [] ], [ "us6:ECHO", "esp:17", "orange", [] ],
+    [ "pir6:VCC", "esp:5V", "red", [] ], [ "pir6:GND", "esp:GND.2", "black", [] ], [ "pir6:OUT", "esp:2", "purple", [] ],
+    [ "us7:VCC", "esp:5V", "red", [] ], [ "us7:GND", "esp:GND.2", "black", [] ], [ "us7:TRIG", "esp:4", "cyan", [] ], [ "us7:ECHO", "esp:21", "orange", [] ],
+    [ "pir7:VCC", "esp:5V", "red", [] ], [ "pir7:GND", "esp:GND.2", "black", [] ], [ "pir7:OUT", "esp:15", "purple", [] ],
+    [ "us8:VCC", "esp:5V", "red", [] ], [ "us8:GND", "esp:GND.2", "black", [] ], [ "us8:TRIG", "esp:4", "cyan", [] ], [ "us8:ECHO", "esp:22", "orange", [] ],
+    [ "pir8:VCC", "esp:5V", "red", [] ], [ "pir8:GND", "esp:GND.2", "black", [] ], [ "pir8:OUT", "esp:VP", "purple", [] ]
+  ],
+  "dependencies": {}
+}

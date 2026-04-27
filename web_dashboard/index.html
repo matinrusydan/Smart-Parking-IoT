@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Parking Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <!-- Phosphor Icons untuk UI yang lebih cantik -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @keyframes flashWarning {
+            0%, 100% { background-color: #fef08a; border-color: #ca8a04; }
+            50% { background-color: #eab308; border-color: #854d0e; }
+        }
+        .animate-warning { animation: flashWarning 1s infinite; }
+        
+        /* Efek transisi halus */
+        .slot-card { transition: all 0.3s ease; }
+        .slot-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        
+        /* Toggle Switch Custom */
+        .toggle-checkbox:checked { right: 0; border-color: #10B981; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #10B981; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans min-h-screen flex flex-col text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-indigo-900 text-white p-4 shadow-lg flex justify-between items-center z-10 sticky top-0">
+        <div>
+            <h1 class="text-2xl font-bold flex items-center gap-2"><i class="ph ph-car-profile"></i> Smart Parking</h1>
+            <p class="text-sm text-indigo-200">Admin Dashboard & Live Monitoring</p>
+        </div>
+        <div class="flex items-center gap-6">
+            <!-- Developer Mode Toggle -->
+            <div class="flex items-center gap-2 bg-indigo-800 p-2 rounded-lg">
+                <i class="ph ph-code text-xl"></i>
+                <span class="text-sm font-semibold">Dev Mode</span>
+                <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" name="toggle" id="devModeToggle" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300" style="top: 1px; left: 1px; z-index: 2;"/>
+                    <label for="devModeToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-400 cursor-pointer transition-colors duration-300"></label>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <span id="mqtt-status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                <span id="mqtt-status-text" class="text-sm font-semibold tracking-wide">Disconnected</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-6 flex flex-col items-center max-w-6xl mx-auto w-full">
+        
+        <!-- Peringatan Anomali -->
+        <div id="anomaly-alert" class="hidden w-full bg-red-100 border-l-4 border-red-600 text-red-800 p-4 mb-6 shadow-md rounded-r-lg" role="alert">
+            <div class="flex items-center">
+                <i class="ph-fill ph-warning-circle text-2xl text-red-600 mr-3"></i>
+                <p class="font-bold text-lg">Peringatan: Anomali Terdeteksi!</p>
+            </div>
+            <p class="mt-1">Sensor mungkin terhalang benda mati/batu atau ada pejalan kaki di area slot. Harap tugaskan sekuriti untuk mengecek lokasi fisik: <span id="anomaly-slots" class="font-bold underline text-red-900"></span></p>
+        </div>
+
+        <!-- Layout Status Lantai -->
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            
+            <!-- Lantai 1 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg">Lt. Dasar</div>
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-700"><i class="ph ph-building"></i> Lantai 1</h2>
+                <div class="grid grid-cols-2 gap-4" id="floor1-grid">
+                    <div id="slot-A1" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A1', 1)">A1</div>
+                    <div id="slot-A2" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A2', 1)">A2</div>
+                    <div id="slot-A3" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A3', 1)">A3</div>
+                    <div id="slot-A4" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A4', 1)">A4</div>
+                </div>
+            </div>
+
+            <!-- Lantai 2 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-indigo-100 text-indigo-800 text-xs font-bold px-3 py-1 rounded-bl-lg">Lt. Atas</div>
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-700"><i class="ph ph-building"></i> Lantai 2</h2>
+                <div class="grid grid-cols-2 gap-4" id="floor2-grid">
+                    <div id="slot-B1" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B1', 2)">B1</div>
+                    <div id="slot-B2" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B2', 2)">B2</div>
+                    <div id="slot-B3" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B3', 2)">B3</div>
+                    <div id="slot-B4" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B4', 2)">B4</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADMIN INSIGHTS & LOGS (Ditampilkan saat Dev Mode ON) -->
+        <div id="admin-panel" class="w-full hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-all duration-500">
+            <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2 border-b pb-3"><i class="ph ph-chart-bar"></i> Admin Insights & Riwayat Parkir</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <p class="text-sm text-blue-600 font-semibold mb-1">Total Kendaraan Hari Ini</p>
+                    <p class="text-3xl font-bold text-blue-900" id="stat-total-cars">0</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+                    <p class="text-sm text-green-600 font-semibold mb-1">Rata-rata Lama Parkir</p>
+                    <p class="text-3xl font-bold text-green-900"><span id="stat-avg-time">0</span> <span class="text-lg font-normal">detik</span></p>
+                </div>
+                <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+                    <p class="text-sm text-red-600 font-semibold mb-1">Insiden Anomali</p>
+                    <p class="text-3xl font-bold text-red-900" id="stat-total-anomalies">0</p>
+                </div>
+            </div>
+
+            <!-- Tabel Riwayat -->
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="min-w-full bg-white text-sm">
+                    <thead class="bg-gray-50 text-gray-600 text-left">
+                        <tr>
+                            <th class="py-3 px-4 border-b">Waktu (WIB)</th>
+                            <th class="py-3 px-4 border-b">Slot</th>
+                            <th class="py-3 px-4 border-b">Kejadian</th>
+                            <th class="py-3 px-4 border-b">Durasi / Info Tambahan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="text-gray-700 divide-y divide-gray-100">
+                        <tr><td colspan="4" class="py-4 text-center text-gray-400 italic">Belum ada aktivitas parkir.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL OVERRIDE SENSOR (Dev Mode) -->
+    <div id="devModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform transition-all scale-95 opacity-0" id="devModalContent">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><i class="ph ph-wrench"></i> Override Sensor: Slot <span id="modal-slot-name" class="text-indigo-600"></span></h3>
+                <button onclick="closeDevModal()" class="text-gray-400 hover:text-red-500"><i class="ph ph-x text-2xl"></i></button>
+            </div>
+            
+            <p class="text-sm text-gray-500 mb-6">Ubah parameter fisik secara manual. ESP32 akan menggunakan data ini (mengabaikan sensor hardware).</p>
+
+            <div class="space-y-5">
+                <!-- Simulasi Jarak -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1 flex justify-between">
+                        <span>Jarak Objek / Ketinggian (Ultrasonik)</span>
+                        <span id="dist-val-display" class="text-indigo-600 font-bold">1.50 m</span>
+                    </label>
+                    <input type="range" id="modal-distance" min="0" max="3" step="0.05" value="1.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" oninput="document.getElementById('dist-val-display').innerText = this.value + ' m'">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>Dekat (0m)</span><span>Jauh (3m)</span>
+                    </div>
+                </div>
+
+                <!-- Simulasi Motion -->
+                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700">Deteksi Gerakan (PIR)</p>
+                        <p class="text-xs text-gray-500">Ada pergerakan (manusia/benda hidup)</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="modal-motion" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mt-8 flex gap-3">
+                <button onclick="sendOverrideCommand()" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition flex justify-center items-center gap-2"><i class="ph ph-upload-simple"></i> Simulasikan</button>
+                <button onclick="resetOverrideCommand()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition flex justify-center items-center gap-2"><i class="ph ph-arrow-counter-clockwise"></i> Reset (Satu)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logic Javascript -->
+    <script>
+        // --- KONFIGURASI MQTT ---
+        const broker = "broker.hivemq.com";
+        const port = 8000; 
+        const topic_status = "proyek/smartparking/status123";
+        const topic_control = "proyek/smartparking/control123"; 
+        
+        const clientId = "WebAdmin-" + Math.random().toString(16).substr(2, 8);
+        const client = new Paho.MQTT.Client(broker, port, clientId);
+
+        // --- STATE & HISTORY MANAGER ---
+        let isDevMode = false;
+        let selectedSlot = "";
+        
+        // Simpan status sebelumnya untuk mendeteksi event Masuk/Keluar
+        const slotStates = {}; 
+        
+        // Data Analitik
+        let historyLogs = [];
+        let totalCars = 0;
+        let totalDuration = 0; // dalam detik
+        let totalAnomalies = 0;
+
+        // UI Elements
+        const statusDot = document.getElementById('mqtt-status-dot');
+        const statusText = document.getElementById('mqtt-status-text');
+        const devModeToggle = document.getElementById('devModeToggle');
+        const adminPanel = document.getElementById('admin-panel');
+        const anomalyAlertBox = document.getElementById('anomaly-alert');
+        const anomalySlotsText = document.getElementById('anomaly-slots');
+        const devModal = document.getElementById('devModal');
+        const devModalContent = document.getElementById('devModalContent');
+
+        // Event Listener Toggle Dev Mode
+        devModeToggle.addEventListener('change', function() {
+            isDevMode = this.checked;
+            if(isDevMode) {
+                adminPanel.classList.remove('hidden');
+                document.body.classList.add('bg-[radial-gradient(#e5e7eb_1px,transparent_1px)]');
+                document.body.style.backgroundSize = '20px 20px';
+            } else {
+                adminPanel.classList.add('hidden');
+                document.body.classList.remove('bg-[radial-gradient(#e5e7eb_1px,transparent_1px)]');
+                document.body.style.backgroundSize = 'auto';
+                
+                // KEMBALIKAN KE SENSOR FISIK SAAT DEV MODE DIMATIKAN
+                resetAllOverrides();
+            }
+        });
+
+        // Format waktu sekarang (HH:MM:SS)
+        function getCurrentTime() {
+            return new Date().toLocaleTimeString('id-ID');
+        }
+
+        // Tambah baris ke tabel riwayat
+        function addHistoryRow(slot, eventType, detail, isWarning = false) {
+            const tableBody = document.getElementById('history-table-body');
+            if(historyLogs.length === 0) tableBody.innerHTML = ''; // Hapus teks default
+
+            const tr = document.createElement('tr');
+            let eventHtml = '';
+            
+            if(eventType === 'Masuk') eventHtml = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">MASUK</span>`;
+            else if(eventType === 'Keluar') eventHtml = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-bold">KELUAR</span>`;
+            else if(eventType === 'Anomali') eventHtml = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-md text-xs font-bold">ANOMALI</span>`;
+
+            tr.innerHTML = `
+                <td class="py-3 px-4 border-b whitespace-nowrap">${getCurrentTime()}</td>
+                <td class="py-3 px-4 border-b font-bold text-gray-800">Slot ${slot}</td>
+                <td class="py-3 px-4 border-b">${eventHtml}</td>
+                <td class="py-3 px-4 border-b ${isWarning ? 'text-red-600 font-semibold' : 'text-gray-600'}">${detail}</td>
+            `;
+            
+            tableBody.insertBefore(tr, tableBody.firstChild); // Insert di atas
+            historyLogs.push({slot, eventType, time: new Date()});
+        }
+
+        // --- UPDATE UI DASHBOARD KOTAK PARKIR ---
+        function updateSlotUI(slotName, state, isOverridden) {
+            const el = document.getElementById('slot-' + slotName);
+            if(!el) return;
+
+            // Efek jika Dev Mode ON dan slot ini sedang di-override
+            let overrideBadge = (isDevMode && isOverridden) ? `<div class="absolute -top-2 -right-2 bg-indigo-500 text-white text-[10px] px-2 py-1 rounded-full shadow-sm z-10"><i class="ph ph-wrench"></i> Override</div>` : '';
+            
+            el.className = "slot-card h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black transition-all duration-300 shadow-sm relative";
+            if(isDevMode) el.classList.add('cursor-pointer', 'hover:ring-4', 'hover:ring-indigo-200');
+
+            if (state === 0) { // EMPTY
+                el.classList.add('bg-green-500', 'text-white', 'border-b-4', 'border-green-600');
+                el.innerHTML = `${overrideBadge}${slotName}<span class="text-xs font-semibold tracking-wider uppercase mt-1 opacity-90">KOSONG</span>`;
+            } else if (state === 2) { // OCCUPIED
+                el.classList.add('bg-red-500', 'text-white', 'border-b-4', 'border-red-600');
+                el.innerHTML = `${overrideBadge}${slotName}<span class="text-xs font-semibold tracking-wider uppercase mt-1 opacity-90">TERISI</span>`;
+            } else if (state === 1) { // ANOMALY
+                el.classList.add('bg-yellow-400', 'text-yellow-900', 'animate-warning', 'border-b-4', 'border-yellow-600');
+                el.innerHTML = `${overrideBadge}${slotName}<span class="text-xs font-bold tracking-wider uppercase mt-1 text-red-700 bg-white/50 px-2 rounded-md">CEK LOKASI</span>`;
+            }
+        }
+
+        // --- PROSES DATA DARI ESP32 ---
+        function processPayload(payload) {
+            let currentAnomalies = [];
+
+            if(payload.slots && Array.isArray(payload.slots)) {
+                payload.slots.forEach(slot => {
+                    updateSlotUI(slot.name, slot.state, slot.dev === 1);
+                    
+                    if(slot.state === 1) currentAnomalies.push("Slot " + slot.name);
+
+                    // --- DETEKSI EVENT PARKIR (LOGIC INSIGHTS) ---
+                    let prev = slotStates[slot.name] ? slotStates[slot.name].state : 0;
+                    let current = slot.state;
+
+                    // Event: Baru Parkir (0 -> 2)
+                    if (prev !== 2 && current === 2) {
+                        addHistoryRow(slot.name, 'Masuk', `Jarak sensor: ${slot.dist} cm`);
+                    }
+                    
+                    // Event: Mobil Keluar (2 -> 0)
+                    if (prev === 2 && current === 0) {
+                        totalCars++;
+                        let dur = slotStates[slot.name].lastDuration || slot.dur; // Ambil durasi terakhir
+                        totalDuration += dur;
+                        
+                        document.getElementById('stat-total-cars').innerText = totalCars;
+                        document.getElementById('stat-avg-time').innerText = Math.round(totalDuration / totalCars);
+                        
+                        addHistoryRow(slot.name, 'Keluar', `Lama parkir: ${dur} detik`);
+                    }
+
+                    // Event: Anomali Muncul (0/2 -> 1)
+                    if (prev !== 1 && current === 1) {
+                        totalAnomalies++;
+                        document.getElementById('stat-total-anomalies').innerText = totalAnomalies;
+                        addHistoryRow(slot.name, 'Anomali', `Tertutup benda mati (Jarak: ${slot.dist}cm, Motion: 0)`, true);
+                    }
+
+                    // Simpan state saat ini untuk pengecekan selanjutnya
+                    slotStates[slot.name] = { state: current, lastDuration: slot.dur };
+                });
+            }
+
+            // Tampilkan Alert Merah Besar jika ada anomali
+            if (currentAnomalies.length > 0) {
+                anomalyAlertBox.classList.remove('hidden');
+                anomalySlotsText.innerText = currentAnomalies.join(", ");
+            } else {
+                anomalyAlertBox.classList.add('hidden');
+            }
+        }
+
+        // --- MODAL DEVELOPER (OVERRIDE) ---
+        function openDevModal(slotName, floor) {
+            if(!isDevMode) return; // Hanya bisa di-klik jika Dev Mode ON
+            selectedSlot = slotName;
+            document.getElementById('modal-slot-name').innerText = slotName;
+            
+            devModal.classList.remove('hidden');
+            devModal.classList.add('flex');
+            setTimeout(() => {
+                devModalContent.classList.remove('scale-95', 'opacity-0');
+                devModalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeDevModal() {
+            devModalContent.classList.remove('scale-100', 'opacity-100');
+            devModalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                devModal.classList.add('hidden');
+                devModal.classList.remove('flex');
+            }, 300);
+        }
+
+        function sendOverrideCommand() {
+            if(!client.isConnected()) return alert("MQTT Belum Konek!");
+            
+            // Konversi dari slider Meter ke Centimeter untuk ESP32
+            let distMeters = parseFloat(document.getElementById('modal-distance').value);
+            let distCm = Math.round(distMeters * 100); 
+            let hasMotion = document.getElementById('modal-motion').checked;
+
+            let payloadObj = {
+                slot: selectedSlot,
+                dist: distCm,
+                mot: hasMotion ? 1 : 0
+            };
+
+            let message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
+            message.destinationName = topic_control;
+            client.send(message);
+            
+            closeDevModal();
+        }
+
+        function resetOverrideCommand() {
+            if(!client.isConnected()) return alert("MQTT Belum Konek!");
+            
+            let payloadObj = {
+                slot: selectedSlot,
+                reset: true
+            };
+
+            let message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
+            message.destinationName = topic_control;
+            client.send(message);
+            
+            closeDevModal();
+        }
+        
+        // Fungsi untuk reset semua override sekaligus (saat Dev Mode dimatikan)
+        function resetAllOverrides() {
+            if(!client.isConnected()) return;
+            let payloadObj = { resetAll: true };
+            let message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
+            message.destinationName = topic_control;
+            client.send(message);
+        }
+
+        // --- LOGIC KONEKSI MQTT PAHO ---
+        client.onConnectionLost = function(responseObject) {
+            statusDot.classList.replace('bg-green-500', 'bg-red-500');
+            statusDot.classList.replace('shadow-[0_0_8px_#10b981]', 'shadow-[0_0_8px_#ef4444]');
+            statusText.innerText = "Reconnecting...";
+            setTimeout(connectMQTT, 5000);
+        };
+
+        client.onMessageArrived = function(message) {
+            try {
+                const payload = JSON.parse(message.payloadString);
+                processPayload(payload);
+            } catch (e) {
+                console.error("Format JSON tidak valid: ", e);
+            }
+        };
+
+        function connectMQTT() {
+            client.connect({
+                timeout: 3,
+                onSuccess: function() {
+                    statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                    statusDot.classList.replace('shadow-[0_0_8px_#ef4444]', 'shadow-[0_0_8px_#10b981]');
+                    statusText.innerText = "Connected & Live";
+                    client.subscribe(topic_status);
+                },
+                onFailure: function() {
+                    statusDot.classList.replace('bg-green-500', 'bg-red-500');
+                    statusText.innerText = "Connection Failed";
+                    setTimeout(connectMQTT, 5000);
+                }
+            });
+        }
+
+        // Mulai koneksi
+        connectMQTT();
+
+    </script>
+</body>
+</html>

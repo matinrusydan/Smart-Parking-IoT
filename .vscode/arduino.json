@@ -1,0 +1,5 @@
+{
+    "sketch": "wokwi_simulasi/sketch.ino",
+    "board": "esp32:esp32:esp32",
+    "output": "./wokwi_simulasi/build"
+}
