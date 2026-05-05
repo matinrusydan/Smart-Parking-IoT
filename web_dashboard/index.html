@@ -3,434 +3,533 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Parking Admin Dashboard</title>
+    <title>Enterprise Smart Parking Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    <!-- Phosphor Icons untuk UI yang lebih cantik -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <style>
-        @keyframes flashWarning {
-            0%, 100% { background-color: #fef08a; border-color: #ca8a04; }
-            50% { background-color: #eab308; border-color: #854d0e; }
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Proteksi Halaman (Cek Session Login)
+        if(!sessionStorage.getItem('isLoggedIn')) {
+            window.location.href = 'login.html';
         }
-        .animate-warning { animation: flashWarning 1s infinite; }
-        
-        /* Efek transisi halus */
+    </script>
+    <style>
         .slot-card { transition: all 0.3s ease; }
         .slot-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        
-        /* Toggle Switch Custom */
-        .toggle-checkbox:checked { right: 0; border-color: #10B981; }
-        .toggle-checkbox:checked + .toggle-label { background-color: #10B981; }
+        .nav-item { transition: all 0.2s; }
+        .nav-item.active { background-color: #4f46e5; color: white; }
     </style>
 </head>
-<body class="bg-gray-50 font-sans min-h-screen flex flex-col text-gray-800">
+<body class="bg-gray-50 text-gray-800 font-sans h-screen flex overflow-hidden">
 
-    <!-- Header -->
-    <header class="bg-indigo-900 text-white p-4 shadow-lg flex justify-between items-center z-10 sticky top-0">
-        <div>
-            <h1 class="text-2xl font-bold flex items-center gap-2"><i class="ph ph-car-profile"></i> Smart Parking</h1>
-            <p class="text-sm text-indigo-200">Admin Dashboard & Live Monitoring</p>
+    <!-- Sidebar Layout -->
+    <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20">
+        <div class="h-20 flex items-center justify-center border-b border-slate-700">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2"> Smart Parking
+            </h1>
         </div>
-        <div class="flex items-center gap-6">
-            <!-- Developer Mode Toggle -->
-            <div class="flex items-center gap-2 bg-indigo-800 p-2 rounded-lg">
-                <i class="ph ph-code text-xl"></i>
-                <span class="text-sm font-semibold">Dev Mode</span>
-                <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                    <input type="checkbox" name="toggle" id="devModeToggle" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300" style="top: 1px; left: 1px; z-index: 2;"/>
-                    <label for="devModeToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-400 cursor-pointer transition-colors duration-300"></label>
-                </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <span id="mqtt-status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
-                <span id="mqtt-status-text" class="text-sm font-semibold tracking-wide">Disconnected</span>
-            </div>
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            <a href="#" onclick="showSection('dashboard', this)" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white">
+                <i class="ph ph-squares-four text-xl"></i> Dashboard Utama
+            </a>
+            <a href="#" onclick="showSection('monitoring', this)" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white">
+                <i class="ph ph-map-pin text-xl"></i> Monitoring Slot
+            </a>
+            <a href="#" onclick="showSection('analytics', this)" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white">
+                <i class="ph ph-chart-bar text-xl"></i> Analytics
+            </a>
+            <a href="#" onclick="showSection('history', this)" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white">
+                <i class="ph ph-clock-counter-clockwise text-xl"></i> Riwayat Parkir
+            </a>
+            <a href="#" onclick="showSection('database', this)" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white">
+                <i class="ph ph-database text-xl"></i> Database Monitor
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-700">
+            <button onclick="logout()" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-red-600 hover:text-white rounded-lg transition font-semibold">
+                <i class="ph ph-sign-out"></i> Keluar
+            </button>
         </div>
-    </header>
+    </aside>
 
     <!-- Main Content -->
-    <main class="flex-grow p-6 flex flex-col items-center max-w-6xl mx-auto w-full">
-        
-        <!-- Peringatan Anomali -->
-        <div id="anomaly-alert" class="hidden w-full bg-red-100 border-l-4 border-red-600 text-red-800 p-4 mb-6 shadow-md rounded-r-lg" role="alert">
-            <div class="flex items-center">
-                <i class="ph-fill ph-warning-circle text-2xl text-red-600 mr-3"></i>
-                <p class="font-bold text-lg">Peringatan: Anomali Terdeteksi!</p>
+    <div class="flex-1 flex flex-col h-screen overflow-hidden">
+        <!-- Top Header -->
+        <header class="h-20 bg-white shadow-sm flex items-center justify-between px-8 z-10 border-b border-gray-100">
+            <div>
+                <h2 id="page-title" class="text-2xl font-bold text-gray-800">Dashboard Utama</h2>
+                <p class="text-sm text-gray-500">Live IoT Monitoring System</p>
             </div>
-            <p class="mt-1">Sensor mungkin terhalang benda mati/batu atau ada pejalan kaki di area slot. Harap tugaskan sekuriti untuk mengecek lokasi fisik: <span id="anomaly-slots" class="font-bold underline text-red-900"></span></p>
-        </div>
+            <div class="flex items-center gap-4">
+                <!-- MQTT Status -->
+                <div class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full border border-gray-200">
+                    <span id="mqtt-status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]"></span>
+                    <span id="mqtt-status-text" class="text-xs font-bold tracking-wide">MQTT Offline</span>
+                </div>
+                <!-- DB Status -->
+                <div class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-full border border-gray-200">
+                    <span id="db-status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]"></span>
+                    <span id="db-status-text" class="text-xs font-bold tracking-wide">API Offline</span>
+                </div>
+            </div>
+        </header>
 
-        <!-- Layout Status Lantai -->
-        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <!-- Scrollable Content Area -->
+        <main class="flex-1 overflow-y-auto p-8 bg-slate-50">
             
-            <!-- Lantai 1 -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div class="absolute top-0 right-0 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg">Lt. Dasar</div>
-                <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-700"><i class="ph ph-building"></i> Lantai 1</h2>
-                <div class="grid grid-cols-2 gap-4" id="floor1-grid">
-                    <div id="slot-A1" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A1', 1)">A1</div>
-                    <div id="slot-A2" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A2', 1)">A2</div>
-                    <div id="slot-A3" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A3', 1)">A3</div>
-                    <div id="slot-A4" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('A4', 1)">A4</div>
-                </div>
-            </div>
-
-            <!-- Lantai 2 -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div class="absolute top-0 right-0 bg-indigo-100 text-indigo-800 text-xs font-bold px-3 py-1 rounded-bl-lg">Lt. Atas</div>
-                <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-700"><i class="ph ph-building"></i> Lantai 2</h2>
-                <div class="grid grid-cols-2 gap-4" id="floor2-grid">
-                    <div id="slot-B1" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B1', 2)">B1</div>
-                    <div id="slot-B2" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B2', 2)">B2</div>
-                    <div id="slot-B3" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B3', 2)">B3</div>
-                    <div id="slot-B4" class="slot-card bg-gray-100 h-32 rounded-xl flex items-center justify-center cursor-pointer relative" onclick="openDevModal('B4', 2)">B4</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ADMIN INSIGHTS & LOGS (Ditampilkan saat Dev Mode ON) -->
-        <div id="admin-panel" class="w-full hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-all duration-500">
-            <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2 border-b pb-3"><i class="ph ph-chart-bar"></i> Admin Insights & Riwayat Parkir</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <p class="text-sm text-blue-600 font-semibold mb-1">Total Kendaraan Hari Ini</p>
-                    <p class="text-3xl font-bold text-blue-900" id="stat-total-cars">0</p>
-                </div>
-                <div class="bg-green-50 p-4 rounded-lg border border-green-100">
-                    <p class="text-sm text-green-600 font-semibold mb-1">Rata-rata Lama Parkir</p>
-                    <p class="text-3xl font-bold text-green-900"><span id="stat-avg-time">0</span> <span class="text-lg font-normal">detik</span></p>
-                </div>
-                <div class="bg-red-50 p-4 rounded-lg border border-red-100">
-                    <p class="text-sm text-red-600 font-semibold mb-1">Insiden Anomali</p>
-                    <p class="text-3xl font-bold text-red-900" id="stat-total-anomalies">0</p>
-                </div>
-            </div>
-
-            <!-- Tabel Riwayat -->
-            <div class="overflow-x-auto rounded-lg border border-gray-200">
-                <table class="min-w-full bg-white text-sm">
-                    <thead class="bg-gray-50 text-gray-600 text-left">
-                        <tr>
-                            <th class="py-3 px-4 border-b">Waktu (WIB)</th>
-                            <th class="py-3 px-4 border-b">Slot</th>
-                            <th class="py-3 px-4 border-b">Kejadian</th>
-                            <th class="py-3 px-4 border-b">Durasi / Info Tambahan</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-table-body" class="text-gray-700 divide-y divide-gray-100">
-                        <tr><td colspan="4" class="py-4 text-center text-gray-400 italic">Belum ada aktivitas parkir.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- MODAL OVERRIDE SENSOR (Dev Mode) -->
-    <div id="devModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform transition-all scale-95 opacity-0" id="devModalContent">
-            <div class="flex justify-between items-center border-b pb-3 mb-4">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><i class="ph ph-wrench"></i> Override Sensor: Slot <span id="modal-slot-name" class="text-indigo-600"></span></h3>
-                <button onclick="closeDevModal()" class="text-gray-400 hover:text-red-500"><i class="ph ph-x text-2xl"></i></button>
-            </div>
-            
-            <p class="text-sm text-gray-500 mb-6">Ubah parameter fisik secara manual. ESP32 akan menggunakan data ini (mengabaikan sensor hardware).</p>
-
-            <div class="space-y-5">
-                <!-- Simulasi Jarak -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1 flex justify-between">
-                        <span>Jarak Objek / Ketinggian (Ultrasonik)</span>
-                        <span id="dist-val-display" class="text-indigo-600 font-bold">1.50 m</span>
-                    </label>
-                    <input type="range" id="modal-distance" min="0" max="3" step="0.05" value="1.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" oninput="document.getElementById('dist-val-display').innerText = this.value + ' m'">
-                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>Dekat (0m)</span><span>Jauh (3m)</span>
+            <!-- ===================== SECTION: DASHBOARD UTAMA ===================== -->
+            <div id="sec-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <!-- Kartu Statistik -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="bg-indigo-100 text-indigo-600 p-4 rounded-xl"><i class="ph-fill ph-car text-3xl"></i></div>
+                        <div><p class="text-sm text-gray-500 font-semibold">Okupansi Parkir</p><p class="text-3xl font-black text-gray-800"><span id="dash-occupancy">0</span>%</p></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="bg-blue-100 text-blue-600 p-4 rounded-xl"><i class="ph-fill ph-arrow-circle-right text-3xl"></i></div>
+                        <div><p class="text-sm text-gray-500 font-semibold">Total Masuk (Harian)</p><p class="text-3xl font-black text-gray-800" id="dash-total-cars">0</p></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="bg-green-100 text-green-600 p-4 rounded-xl"><i class="ph-fill ph-timer text-3xl"></i></div>
+                        <div><p class="text-sm text-gray-500 font-semibold">Rata-rata Durasi</p><p class="text-3xl font-black text-gray-800"><span id="dash-avg-time">0</span>s</p></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="bg-red-100 text-red-600 p-4 rounded-xl"><i class="ph-fill ph-warning-circle text-3xl"></i></div>
+                        <div><p class="text-sm text-gray-500 font-semibold">Insiden Anomali</p><p class="text-3xl font-black text-gray-800" id="dash-anomalies">0</p></div>
                     </div>
                 </div>
 
-                <!-- Simulasi Motion -->
-                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-700">Deteksi Gerakan (PIR)</p>
-                        <p class="text-xs text-gray-500">Ada pergerakan (manusia/benda hidup)</p>
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-bold">Grafik Tren Parkir Mingguan</h3>
+                        <span class="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100"><i class="ph-fill ph-database"></i> Live Data MySQL</span>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="modal-motion" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
+                    <div class="w-full h-80">
+                        <canvas id="activityChart"></canvas>
+                    </div>
                 </div>
             </div>
 
-            <div class="mt-8 flex gap-3">
-                <button onclick="sendOverrideCommand()" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition flex justify-center items-center gap-2"><i class="ph ph-upload-simple"></i> Simulasikan</button>
-                <button onclick="resetOverrideCommand()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition flex justify-center items-center gap-2"><i class="ph ph-arrow-counter-clockwise"></i> Reset (Satu)</button>
+            <!-- ===================== SECTION: MONITORING SLOT ===================== -->
+            <div id="sec-monitoring" class="hidden space-y-6">
+                <!-- Alert Box -->
+                <div id="anomaly-alert" class="hidden w-full bg-red-50 border-l-4 border-red-500 text-red-800 p-4 shadow-sm rounded-r-lg">
+                    <div class="flex items-center font-bold text-lg mb-1"><i class="ph-fill ph-warning text-red-500 mr-2"></i> Peringatan Sistem!</div>
+                    <p>Sensor mendeteksi anomali fisik (pejalan kaki / benda asing). Segera cek CCTV di slot: <span id="anomaly-slots" class="font-bold underline"></span></p>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                    <!-- Lantai 1 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-center mb-6 border-b pb-3 border-gray-100">
+                            <h2 class="text-xl font-bold flex items-center gap-2 text-gray-700"><i class="ph-fill ph-building"></i> Lantai 1 (Dasar)</h2>
+                            <span class="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-100">Zona A</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div id="slot-A1" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">A1</div>
+                            <div id="slot-A2" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">A2</div>
+                            <div id="slot-A3" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">A3</div>
+                            <div id="slot-A4" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">A4</div>
+                        </div>
+                    </div>
+                    <!-- Lantai 2 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-center mb-6 border-b pb-3 border-gray-100">
+                            <h2 class="text-xl font-bold flex items-center gap-2 text-gray-700"><i class="ph-fill ph-building"></i> Lantai 2 (Atas)</h2>
+                            <span class="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100">Zona B</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div id="slot-B1" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">B1</div>
+                            <div id="slot-B2" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">B2</div>
+                            <div id="slot-B3" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">B3</div>
+                            <div id="slot-B4" class="slot-card bg-gray-100 h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black relative">B4</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            <!-- ===================== SECTION: ANALYTICS ===================== -->
+            <div id="sec-analytics" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 class="text-lg font-bold mb-4 text-gray-700">Distribusi Okupansi Area (Real-time)</h3>
+                    <div class="w-full max-w-sm mx-auto h-80">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== SECTION: HISTORY ===================== -->
+            <div id="sec-history" class="hidden">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 class="text-lg font-bold text-gray-800">Catatan Sistem (Event Logs)</h3>
+                        <button onclick="fetchAPIHistory()" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-sm">
+                            <i class="ph ph-arrows-clockwise text-indigo-600"></i> Refresh Tabel
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left">
+                            <thead class="bg-gray-100 text-gray-600 uppercase text-xs tracking-wider">
+                                <tr>
+                                    <th class="py-4 px-6 border-b">Timestamp (WIB)</th>
+                                    <th class="py-4 px-6 border-b">Slot ID</th>
+                                    <th class="py-4 px-6 border-b">Kejadian</th>
+                                    <th class="py-4 px-6 border-b">Detail / Diagnostik</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body" class="divide-y divide-gray-100 bg-white">
+                                <tr><td colspan="4" class="py-8 text-center text-gray-400 italic">Memuat data dari MySQL...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== SECTION: DATABASE MONITOR ===================== -->
+            <div id="sec-database" class="hidden space-y-6">
+                <div class="bg-[#0f172a] text-slate-300 p-8 rounded-2xl shadow-2xl relative overflow-hidden">
+                    <!-- Background Pattern -->
+                    <div class="absolute inset-0 opacity-5" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 20px 20px;"></div>
+                    
+                    <div class="relative z-10">
+                        <div class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                            <div>
+                                <h3 class="text-2xl font-bold flex items-center gap-2 text-white"><i class="ph ph-database text-indigo-500"></i> Relational Database Monitor</h3>
+                                <p class="text-sm text-slate-400 mt-1">Live inspection of MySQL Tables (Database: smart_parking_iot)</p>
+                            </div>
+                            <button onclick="fetchDatabaseMonitor()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-indigo-500/20">
+                                <i class="ph ph-arrows-clockwise"></i> Fetch Schema
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700 backdrop-blur-sm">
+                                <div class="flex justify-between items-start mb-2">
+                                    <p class="text-slate-400 text-xs font-mono">TABLE</p>
+                                    <i class="ph-fill ph-table text-slate-500"></i>
+                                </div>
+                                <p class="text-white text-sm font-mono mb-2">parking_slots</p>
+                                <p class="text-3xl font-mono text-emerald-400"><span id="db-count-slots">0</span> <span class="text-xs text-slate-500">rows</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700 backdrop-blur-sm">
+                                <div class="flex justify-between items-start mb-2">
+                                    <p class="text-slate-400 text-xs font-mono">TABLE</p>
+                                    <i class="ph-fill ph-table text-slate-500"></i>
+                                </div>
+                                <p class="text-white text-sm font-mono mb-2">parking_events</p>
+                                <p class="text-3xl font-mono text-blue-400"><span id="db-count-events">0</span> <span class="text-xs text-slate-500">rows</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700 backdrop-blur-sm">
+                                <div class="flex justify-between items-start mb-2">
+                                    <p class="text-slate-400 text-xs font-mono">TABLE</p>
+                                    <i class="ph-fill ph-table text-slate-500"></i>
+                                </div>
+                                <p class="text-white text-sm font-mono mb-2">parking_sessions</p>
+                                <p class="text-3xl font-mono text-purple-400"><span id="db-count-sessions">0</span> <span class="text-xs text-slate-500">rows</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700 backdrop-blur-sm">
+                                <div class="flex justify-between items-start mb-2">
+                                    <p class="text-slate-400 text-xs font-mono">TABLE</p>
+                                    <i class="ph-fill ph-table text-slate-500"></i>
+                                </div>
+                                <p class="text-white text-sm font-mono mb-2">daily_summary</p>
+                                <p class="text-3xl font-mono text-amber-400"><span id="db-count-summary">0</span> <span class="text-xs text-slate-500">rows</span></p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center gap-2 text-slate-400 font-mono text-xs mb-3 bg-slate-950 p-2 rounded-t-lg border-b border-slate-800 w-max">
+                                <i class="ph-fill ph-terminal"></i> <span>SELECT * FROM parking_events ORDER BY id DESC LIMIT 2;</span>
+                            </div>
+                            <div class="bg-[#050505] p-5 rounded-b-lg rounded-tr-lg font-mono text-xs overflow-x-auto text-emerald-500 shadow-inner border border-slate-800">
+                                <pre id="db-terminal-output" class="leading-relaxed">Waiting for API connection...</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
     </div>
 
-    <!-- Logic Javascript -->
+    <!-- LOGIC SYSTEM -->
     <script>
-        // --- KONFIGURASI MQTT ---
-        const broker = "broker.hivemq.com";
-        const port = 8000; 
-        const topic_status = "proyek/smartparking/status123";
-        const topic_control = "proyek/smartparking/control123"; 
-        
-        const clientId = "WebAdmin-" + Math.random().toString(16).substr(2, 8);
-        const client = new Paho.MQTT.Client(broker, port, clientId);
+        // --- 1. NAVIGATION LOGIC ---
+        function showSection(sectionId, element) {
+            document.querySelectorAll('main > div').forEach(el => el.classList.add('hidden'));
+            document.getElementById('sec-' + sectionId).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if(element) element.classList.add('active');
 
-        // --- STATE & HISTORY MANAGER ---
-        let isDevMode = false;
-        let selectedSlot = "";
-        
-        // Simpan status sebelumnya untuk mendeteksi event Masuk/Keluar
-        const slotStates = {}; 
-        
-        // Data Analitik
-        let historyLogs = [];
-        let totalCars = 0;
-        let totalDuration = 0; // dalam detik
-        let totalAnomalies = 0;
+            const titles = {
+                'dashboard': 'Dashboard Utama',
+                'monitoring': 'Live Monitoring Slot',
+                'analytics': 'Analytics & Grafik',
+                'history': 'Riwayat Histori Parkir',
+                'database': 'Database Monitor'
+            };
+            document.getElementById('page-title').innerText = titles[sectionId];
 
-        // UI Elements
-        const statusDot = document.getElementById('mqtt-status-dot');
-        const statusText = document.getElementById('mqtt-status-text');
-        const devModeToggle = document.getElementById('devModeToggle');
-        const adminPanel = document.getElementById('admin-panel');
-        const anomalyAlertBox = document.getElementById('anomaly-alert');
-        const anomalySlotsText = document.getElementById('anomaly-slots');
-        const devModal = document.getElementById('devModal');
-        const devModalContent = document.getElementById('devModalContent');
+            // Action based on view
+            if(sectionId === 'history') fetchAPIHistory();
+            if(sectionId === 'database') fetchDatabaseMonitor();
+            if(sectionId === 'analytics') updatePieChart();
+        }
 
-        // Event Listener Toggle Dev Mode
-        devModeToggle.addEventListener('change', function() {
-            isDevMode = this.checked;
-            if(isDevMode) {
-                adminPanel.classList.remove('hidden');
-                document.body.classList.add('bg-[radial-gradient(#e5e7eb_1px,transparent_1px)]');
-                document.body.style.backgroundSize = '20px 20px';
-            } else {
-                adminPanel.classList.add('hidden');
-                document.body.classList.remove('bg-[radial-gradient(#e5e7eb_1px,transparent_1px)]');
-                document.body.style.backgroundSize = 'auto';
+        function logout() {
+            sessionStorage.removeItem('isLoggedIn');
+            window.location.href = 'login.html';
+        }
+
+        // --- 2. CHART.JS CONFIGURATION ---
+        let activityChart, pieChart;
+        function initCharts() {
+            // Bar Chart (Kosong dulu, akan diisi oleh API)
+            const ctx1 = document.getElementById('activityChart').getContext('2d');
+            activityChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Mobil Masuk',
+                        data: [],
+                        backgroundColor: '#6366f1',
+                        borderRadius: 6
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { borderDash: [2, 4] }, ticks: { stepSize: 1 } } }
+                }
+            });
+
+            // Pie Chart (Real-time occupancy)
+            const ctx2 = document.getElementById('pieChart').getContext('2d');
+            pieChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Kosong', 'Terisi', 'Anomali'],
+                    datasets: [{
+                        data: [8, 0, 0],
+                        backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+        initCharts();
+
+        // --- 3. REST API FETCHING LOGIC (MYSQL CONNECTION) ---
+        let globalOccupancy = { empty: 8, occupied: 0, anomaly: 0 };
+        const apiUrl = 'http://localhost:3000/api';
+        
+        async function fetchAPIStats() {
+            try {
+                const res = await fetch(`${apiUrl}/dashboard/stats`);
+                if(!res.ok) throw new Error('API Offline');
+                const data = await res.json();
                 
-                // KEMBALIKAN KE SENSOR FISIK SAAT DEV MODE DIMATIKAN
-                resetAllOverrides();
+                document.getElementById('dash-total-cars').innerText = data.total_cars_today;
+                document.getElementById('dash-avg-time').innerText = data.avg_duration_seconds;
+                document.getElementById('dash-anomalies').innerText = data.total_anomalies_today;
+                document.getElementById('dash-occupancy').innerText = data.occupancy.percentage;
+                
+                // Fetch Trend Grafik Mingguan
+                const resTrend = await fetch(`${apiUrl}/dashboard/trend`);
+                if(resTrend.ok) {
+                    const trendData = await resTrend.json();
+                    activityChart.data.labels = trendData.map(d => d.day);
+                    activityChart.data.datasets[0].data = trendData.map(d => d.total);
+                    activityChart.update();
+                }
+
+                setDBStatus(true);
+            } catch (err) {
+                console.error(err);
+                setDBStatus(false);
             }
-        });
-
-        // Format waktu sekarang (HH:MM:SS)
-        function getCurrentTime() {
-            return new Date().toLocaleTimeString('id-ID');
         }
 
-        // Tambah baris ke tabel riwayat
-        function addHistoryRow(slot, eventType, detail, isWarning = false) {
-            const tableBody = document.getElementById('history-table-body');
-            if(historyLogs.length === 0) tableBody.innerHTML = ''; // Hapus teks default
+        async function fetchAPIHistory() {
+            try {
+                const res = await fetch(`${apiUrl}/events?limit=20`);
+                if(!res.ok) throw new Error('API Offline');
+                const logs = await res.json();
+                
+                const tbody = document.getElementById('history-table-body');
+                if(!logs.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-gray-400 italic">Belum ada riwayat tercatat di MySQL.</td></tr>';
+                    return;
+                }
 
-            const tr = document.createElement('tr');
-            let eventHtml = '';
-            
-            if(eventType === 'Masuk') eventHtml = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">MASUK</span>`;
-            else if(eventType === 'Keluar') eventHtml = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-md text-xs font-bold">KELUAR</span>`;
-            else if(eventType === 'Anomali') eventHtml = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-md text-xs font-bold">ANOMALI</span>`;
+                let html = '';
+                logs.forEach(log => {
+                    let badge = '';
+                    if(log.event_type === 'MASUK') badge = `<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider">MASUK</span>`;
+                    else if(log.event_type === 'KELUAR') badge = `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider">KELUAR</span>`;
+                    else badge = `<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider animate-pulse">ANOMALI</span>`;
 
-            tr.innerHTML = `
-                <td class="py-3 px-4 border-b whitespace-nowrap">${getCurrentTime()}</td>
-                <td class="py-3 px-4 border-b font-bold text-gray-800">Slot ${slot}</td>
-                <td class="py-3 px-4 border-b">${eventHtml}</td>
-                <td class="py-3 px-4 border-b ${isWarning ? 'text-red-600 font-semibold' : 'text-gray-600'}">${detail}</td>
-            `;
-            
-            tableBody.insertBefore(tr, tableBody.firstChild); // Insert di atas
-            historyLogs.push({slot, eventType, time: new Date()});
+                    html += `<tr class="hover:bg-gray-50 transition">
+                        <td class="py-4 px-6 border-b text-gray-500 font-mono text-xs whitespace-nowrap">${new Date(log.created_at).toLocaleString('id-ID')}</td>
+                        <td class="py-4 px-6 border-b font-bold text-gray-800">Slot ${log.slot_code}</td>
+                        <td class="py-4 px-6 border-b">${badge}</td>
+                        <td class="py-4 px-6 border-b text-gray-500 text-xs">${log.detail}</td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+            } catch (err) { console.error(err); }
         }
 
-        // --- UPDATE UI DASHBOARD KOTAK PARKIR ---
-        function updateSlotUI(slotName, state, isOverridden) {
+        async function fetchDatabaseMonitor() {
+            try {
+                // Fetch Row Counts
+                const res = await fetch(`${apiUrl}/database/status`);
+                if(!res.ok) throw new Error('API Offline');
+                const data = await res.json();
+                
+                document.getElementById('db-count-slots').innerText = data.tables.parking_slots;
+                document.getElementById('db-count-events').innerText = data.tables.parking_events;
+                document.getElementById('db-count-sessions').innerText = data.tables.parking_sessions;
+                document.getElementById('db-count-summary').innerText = data.tables.daily_summary;
+
+                // Fetch Terminal Output (Latest JSON)
+                const resEv = await fetch(`${apiUrl}/events?limit=2`);
+                const events = await resEv.json();
+                document.getElementById('db-terminal-output').innerText = JSON.stringify(events, null, 4);
+                setDBStatus(true);
+            } catch (err) {
+                document.getElementById('db-terminal-output').innerText = "ERROR: Cannot reach Node.js Backend API.\nPlease ensure 'npm start' is running and Database is active.";
+                setDBStatus(false);
+            }
+        }
+
+        function setDBStatus(isConnected) {
+            const dot = document.getElementById('db-status-dot');
+            const txt = document.getElementById('db-status-text');
+            if(isConnected) {
+                dot.className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
+                txt.innerText = "API Connected";
+                txt.className = "text-xs font-bold tracking-wide text-green-700";
+            } else {
+                dot.className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]";
+                txt.innerText = "API Offline";
+                txt.className = "text-xs font-bold tracking-wide text-red-700";
+            }
+        }
+
+        function updatePieChart() {
+            pieChart.data.datasets[0].data = [globalOccupancy.empty, globalOccupancy.occupied, globalOccupancy.anomaly];
+            pieChart.update();
+        }
+
+        // --- 4. REAL-TIME MQTT LOGIC ---
+        const broker = "broker.hivemq.com";
+        const port = 8000;
+        const topic_status = "proyek/smartparking/status123";
+        const client = new Paho.MQTT.Client(broker, port, "WebAdminUI-" + Math.random().toString(16).substr(2,8));
+        const slotStates = {};
+
+        function updateSlotUI(slotName, state) {
             const el = document.getElementById('slot-' + slotName);
             if(!el) return;
-
-            // Efek jika Dev Mode ON dan slot ini sedang di-override
-            let overrideBadge = (isDevMode && isOverridden) ? `<div class="absolute -top-2 -right-2 bg-indigo-500 text-white text-[10px] px-2 py-1 rounded-full shadow-sm z-10"><i class="ph ph-wrench"></i> Override</div>` : '';
             
-            el.className = "slot-card h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black transition-all duration-300 shadow-sm relative";
-            if(isDevMode) el.classList.add('cursor-pointer', 'hover:ring-4', 'hover:ring-indigo-200');
-
-            if (state === 0) { // EMPTY
-                el.classList.add('bg-green-500', 'text-white', 'border-b-4', 'border-green-600');
-                el.innerHTML = `${overrideBadge}${slotName}<span class="text-xs font-semibold tracking-wider uppercase mt-1 opacity-90">KOSONG</span>`;
-            } else if (state === 2) { // OCCUPIED
-                el.classList.add('bg-red-500', 'text-white', 'border-b-4', 'border-red-600');
-                el.innerHTML = `${overrideBadge}${slotName}<span class="text-xs font-semibold tracking-wider uppercase mt-1 opacity-90">TERISI</span>`;
-            } else if (state === 1) { // ANOMALY
-                el.classList.add('bg-yellow-400', 'text-yellow-900', 'animate-warning', 'border-b-4', 'border-yellow-600');
-                el.innerHTML = `${overrideBadge}${slotName}<span class="text-xs font-bold tracking-wider uppercase mt-1 text-red-700 bg-white/50 px-2 rounded-md">CEK LOKASI</span>`;
+            el.className = "slot-card h-32 rounded-xl flex flex-col items-center justify-center text-3xl font-black";
+            if (state === 0) {
+                el.classList.add('bg-emerald-500', 'text-white', 'border-b-4', 'border-emerald-700');
+                el.innerHTML = `${slotName}<span class="text-[10px] font-bold tracking-widest mt-1 opacity-90 uppercase">Kosong</span>`;
+            } else if (state === 2) {
+                el.classList.add('bg-rose-500', 'text-white', 'border-b-4', 'border-rose-700');
+                el.innerHTML = `${slotName}<span class="text-[10px] font-bold tracking-widest mt-1 opacity-90 uppercase">Terisi</span>`;
+            } else if (state === 1) {
+                el.classList.add('bg-amber-400', 'text-amber-900', 'animate-warning', 'border-b-4', 'border-amber-600');
+                el.innerHTML = `${slotName}<span class="text-[10px] font-black tracking-widest mt-1 text-red-700 bg-white/50 px-2 rounded uppercase">Cek Lokasi</span>`;
             }
         }
 
-        // --- PROSES DATA DARI ESP32 ---
-        function processPayload(payload) {
-            let currentAnomalies = [];
-
-            if(payload.slots && Array.isArray(payload.slots)) {
-                payload.slots.forEach(slot => {
-                    updateSlotUI(slot.name, slot.state, slot.dev === 1);
-                    
-                    if(slot.state === 1) currentAnomalies.push("Slot " + slot.name);
-
-                    // --- DETEKSI EVENT PARKIR (LOGIC INSIGHTS) ---
-                    let prev = slotStates[slot.name] ? slotStates[slot.name].state : 0;
-                    let current = slot.state;
-
-                    // Event: Baru Parkir (0 -> 2)
-                    if (prev !== 2 && current === 2) {
-                        addHistoryRow(slot.name, 'Masuk', `Jarak sensor: ${slot.dist} cm`);
-                    }
-                    
-                    // Event: Mobil Keluar (2 -> 0)
-                    if (prev === 2 && current === 0) {
-                        totalCars++;
-                        let dur = slotStates[slot.name].lastDuration || slot.dur; // Ambil durasi terakhir
-                        totalDuration += dur;
-                        
-                        document.getElementById('stat-total-cars').innerText = totalCars;
-                        document.getElementById('stat-avg-time').innerText = Math.round(totalDuration / totalCars);
-                        
-                        addHistoryRow(slot.name, 'Keluar', `Lama parkir: ${dur} detik`);
-                    }
-
-                    // Event: Anomali Muncul (0/2 -> 1)
-                    if (prev !== 1 && current === 1) {
-                        totalAnomalies++;
-                        document.getElementById('stat-total-anomalies').innerText = totalAnomalies;
-                        addHistoryRow(slot.name, 'Anomali', `Tertutup benda mati (Jarak: ${slot.dist}cm, Motion: 0)`, true);
-                    }
-
-                    // Simpan state saat ini untuk pengecekan selanjutnya
-                    slotStates[slot.name] = { state: current, lastDuration: slot.dur };
-                });
-            }
-
-            // Tampilkan Alert Merah Besar jika ada anomali
-            if (currentAnomalies.length > 0) {
-                anomalyAlertBox.classList.remove('hidden');
-                anomalySlotsText.innerText = currentAnomalies.join(", ");
-            } else {
-                anomalyAlertBox.classList.add('hidden');
-            }
-        }
-
-        // --- MODAL DEVELOPER (OVERRIDE) ---
-        function openDevModal(slotName, floor) {
-            if(!isDevMode) return; // Hanya bisa di-klik jika Dev Mode ON
-            selectedSlot = slotName;
-            document.getElementById('modal-slot-name').innerText = slotName;
-            
-            devModal.classList.remove('hidden');
-            devModal.classList.add('flex');
-            setTimeout(() => {
-                devModalContent.classList.remove('scale-95', 'opacity-0');
-                devModalContent.classList.add('scale-100', 'opacity-100');
-            }, 10);
-        }
-
-        function closeDevModal() {
-            devModalContent.classList.remove('scale-100', 'opacity-100');
-            devModalContent.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => {
-                devModal.classList.add('hidden');
-                devModal.classList.remove('flex');
-            }, 300);
-        }
-
-        function sendOverrideCommand() {
-            if(!client.isConnected()) return alert("MQTT Belum Konek!");
-            
-            // Konversi dari slider Meter ke Centimeter untuk ESP32
-            let distMeters = parseFloat(document.getElementById('modal-distance').value);
-            let distCm = Math.round(distMeters * 100); 
-            let hasMotion = document.getElementById('modal-motion').checked;
-
-            let payloadObj = {
-                slot: selectedSlot,
-                dist: distCm,
-                mot: hasMotion ? 1 : 0
-            };
-
-            let message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
-            message.destinationName = topic_control;
-            client.send(message);
-            
-            closeDevModal();
-        }
-
-        function resetOverrideCommand() {
-            if(!client.isConnected()) return alert("MQTT Belum Konek!");
-            
-            let payloadObj = {
-                slot: selectedSlot,
-                reset: true
-            };
-
-            let message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
-            message.destinationName = topic_control;
-            client.send(message);
-            
-            closeDevModal();
-        }
-        
-        // Fungsi untuk reset semua override sekaligus (saat Dev Mode dimatikan)
-        function resetAllOverrides() {
-            if(!client.isConnected()) return;
-            let payloadObj = { resetAll: true };
-            let message = new Paho.MQTT.Message(JSON.stringify(payloadObj));
-            message.destinationName = topic_control;
-            client.send(message);
-        }
-
-        // --- LOGIC KONEKSI MQTT PAHO ---
-        client.onConnectionLost = function(responseObject) {
-            statusDot.classList.replace('bg-green-500', 'bg-red-500');
-            statusDot.classList.replace('shadow-[0_0_8px_#10b981]', 'shadow-[0_0_8px_#ef4444]');
-            statusText.innerText = "Reconnecting...";
+        client.onConnectionLost = function() {
+            const dot = document.getElementById('mqtt-status-dot');
+            const txt = document.getElementById('mqtt-status-text');
+            dot.className = "w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]";
+            txt.innerText = "MQTT Offline";
+            txt.className = "text-xs font-bold tracking-wide text-red-700";
             setTimeout(connectMQTT, 5000);
         };
 
         client.onMessageArrived = function(message) {
             try {
                 const payload = JSON.parse(message.payloadString);
-                processPayload(payload);
-            } catch (e) {
-                console.error("Format JSON tidak valid: ", e);
-            }
+                let currentAnomalies = [];
+                let countEmpty = 0, countOcc = 0, countAno = 0;
+
+                if(payload.slots) {
+                    payload.slots.forEach(slot => {
+                        updateSlotUI(slot.name, slot.state);
+                        
+                        if(slot.state === 0) countEmpty++;
+                        if(slot.state === 1) { currentAnomalies.push(slot.name); countAno++; }
+                        if(slot.state === 2) countOcc++;
+
+                        let prev = slotStates[slot.name] || 0;
+                        let needsRefresh = (prev !== slot.state);
+                        
+                        if(needsRefresh) {
+                            // Fetch API setelah Backend selesei input DB
+                            setTimeout(() => { fetchAPIStats(); }, 500);
+                        }
+                        slotStates[slot.name] = slot.state;
+                    });
+
+                    globalOccupancy = { empty: countEmpty, occupied: countOcc, anomaly: countAno };
+                    // Auto-update chart jika sedang dibuka
+                    if(!document.getElementById('sec-analytics').classList.contains('hidden')) {
+                        updatePieChart();
+                    }
+                    
+                    const alertBox = document.getElementById('anomaly-alert');
+                    if(currentAnomalies.length > 0) {
+                        alertBox.classList.remove('hidden');
+                        document.getElementById('anomaly-slots').innerText = currentAnomalies.join(', ');
+                    } else {
+                        alertBox.classList.add('hidden');
+                    }
+                }
+            } catch(e) { console.error(e); }
         };
 
         function connectMQTT() {
             client.connect({
-                timeout: 3,
-                onSuccess: function() {
-                    statusDot.classList.replace('bg-red-500', 'bg-green-500');
-                    statusDot.classList.replace('shadow-[0_0_8px_#ef4444]', 'shadow-[0_0_8px_#10b981]');
-                    statusText.innerText = "Connected & Live";
+                onSuccess: () => {
+                    const dot = document.getElementById('mqtt-status-dot');
+                    const txt = document.getElementById('mqtt-status-text');
+                    dot.className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
+                    txt.innerText = "MQTT Connected";
+                    txt.className = "text-xs font-bold tracking-wide text-green-700";
                     client.subscribe(topic_status);
-                },
-                onFailure: function() {
-                    statusDot.classList.replace('bg-green-500', 'bg-red-500');
-                    statusText.innerText = "Connection Failed";
-                    setTimeout(connectMQTT, 5000);
                 }
             });
         }
 
-        // Mulai koneksi
+        // --- INITIALIZATION ---
+        fetchAPIStats();
         connectMQTT();
-
+        
+        // Polling background khusus untuk Database Monitor
+        setInterval(() => {
+            if(!document.getElementById('sec-database').classList.contains('hidden')) {
+                fetchDatabaseMonitor();
+            }
+        }, 3000);
     </script>
 </body>
 </html>

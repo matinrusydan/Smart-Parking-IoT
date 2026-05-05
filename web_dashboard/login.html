@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Smart Parking IoT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body class="bg-gray-100 h-screen flex items-center justify-center font-sans">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="bg-indigo-100 text-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="ph-fill ph-car-profile text-4xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800">Smart Parking IoT</h1>
+            <p class="text-sm text-gray-500">Enterprise Admin Dashboard</p>
+        </div>
+        
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="ph ph-user text-gray-400"></i>
+                    </div>
+                    <input type="text" id="username" class="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition" placeholder="admin" required>
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="ph ph-lock text-gray-400"></i>
+                    </div>
+                    <input type="password" id="password" class="w-full pl-10 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition" placeholder="••••••••" required>
+                </div>
+            </div>
+            
+            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 hover:shadow-lg transition duration-300 flex justify-center items-center gap-2 mt-4">
+                <i class="ph ph-sign-in text-lg"></i> Masuk Sistem
+            </button>
+            
+            <div id="errorMsg" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center border border-red-100 mt-4">
+                <i class="ph-fill ph-warning-circle"></i> Username atau password salah.
+            </div>
+            
+            <div class="mt-6 text-center text-xs text-gray-400">
+                Gunakan kredensial default untuk demo UAS.<br/>(User: <b>admin</b>, Pass: <b>admin</b>)
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Bersihkan session sebelumnya jika ada
+        sessionStorage.removeItem('isLoggedIn');
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            
+            if(user === 'admin' && pass === 'admin') {
+                sessionStorage.setItem('isLoggedIn', 'true');
+                window.location.href = 'index.html';
+            } else {
+                document.getElementById('errorMsg').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
