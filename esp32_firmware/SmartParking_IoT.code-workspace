@@ -1,0 +1,18 @@
+{
+  "folders": [
+	{
+		"path": ".."
+	},
+	{
+		"name": "SmartParking_ESP32",
+		"path": "../../../../Users/lilol/Documents/PlatformIO/Projects/SmartParking_ESP32"
+	},
+	{
+		"name": "SmartParking_ESP32",
+		"path": "../../PlatformIO/Projects/SmartParking_ESP32"
+	}
+],
+  "settings": {
+    "liveServer.settings.multiRootWorkspaceName": "SmartParking_IoT"
+  }
+}

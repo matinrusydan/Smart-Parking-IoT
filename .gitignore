@@ -10,9 +10,12 @@ backend/.env
 # Editor & IDE
 .vscode/
 .idea/
+.pio/
 *.suo
 *.ntvs*
 *.njsproj
+*.sln
+*.sw?
 *.sln
 *.sw?
 
